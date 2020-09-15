@@ -1,0 +1,304 @@
+Parameters:
+
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+        Default: Capstone
+
+    VpcCIDR: 
+        Description: Please enter the IP range (CIDR notation) for this VPC
+        Type: String
+        Default: 30.0.0.0/16
+
+    PublicSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+        Type: String
+        Default: 30.0.1.0/24
+
+    PublicSubnet2CIDR:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+        Type: String
+        Default: 30.0.2.0/24
+
+    KeyName:
+        Description: Keypair to use for ssh
+        Type: String
+        Default: capstone-keypair
+
+Resources:
+
+    VPC: 
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: !Ref VpcCIDR
+            EnableDnsHostnames: true
+            Tags: 
+                - Key: Name 
+                  Value: !Ref EnvironmentName
+
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+                - Key: Name
+                  Value: !Ref EnvironmentName
+            
+    InternetGatewayAttachment:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            InternetGatewayId: !Ref InternetGateway
+            VpcId: !Ref VPC
+
+    PublicSubnet1: 
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 0, !GetAZs '' ]
+            CidrBlock: !Ref PublicSubnet1CIDR
+            MapPublicIpOnLaunch: true
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Public Subnet 1 (AZ1)
+
+    PublicSubnet2: 
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 1, !GetAZs '' ]
+            CidrBlock: !Ref PublicSubnet2CIDR
+            MapPublicIpOnLaunch: true
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Public Subnet 2 (AZ2)
+
+    PublicRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties: 
+            VpcId: !Ref VPC
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Public Routes
+
+    DefaultPublicRoute: 
+        Type: AWS::EC2::Route
+        DependsOn: InternetGatewayAttachment
+        Properties: 
+            RouteTableId: !Ref PublicRouteTable
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref InternetGateway
+
+    PublicSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet1
+
+    PublicSubnet2RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet2
+
+    EKSSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Cluster security group
+            VpcId: !Ref VPC
+
+    EKSRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                -   Effect: "Allow"
+                    Principal:
+                        Service:
+                        -   "eks.amazonaws.com" 
+                    Action: 
+                    -   "sts:AssumeRole"
+            Tags:
+            -   Key: Name
+                Value: !Sub "${EnvironmentName}-Role"
+            Path: "/"
+            ManagedPolicyArns: [
+                "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
+                "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
+            ]
+            
+    WorkerRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                -   Effect: Allow
+                    Principal:
+                        Service:
+                        -   ec2.amazonaws.com
+                    Action:
+                    -   "sts:AssumeRole"
+            ManagedPolicyArns:
+            -   "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+            -   "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+            -   "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+
+    CapCluster:
+        Type: AWS::EKS::Cluster
+        Properties:
+            Name: !Sub '${EnvironmentName}-cluster'
+            Version: '1.14'
+            RoleArn: !GetAtt EKSRole.Arn
+            ResourcesVpcConfig:
+                SecurityGroupIds:
+                -   !Ref EKSSecurityGroup
+                SubnetIds:
+                -   !Ref PublicSubnet1
+                -   !Ref PublicSubnet2
+
+    NodeGroup:
+        Type: 'AWS::EKS::Nodegroup'
+        DependsOn: CapCluster
+        Properties:
+            ClusterName: !Sub '${EnvironmentName}-cluster'
+            NodeRole: !GetAtt WorkerRole.Arn
+            InstanceTypes: 
+            - t2.small
+            RemoteAccess:
+                Ec2SshKey: !Ref KeyName
+            Subnets:
+            -   !Ref PublicSubnet1
+            -   !Ref PublicSubnet2
+            ScalingConfig:
+                DesiredSize: 1
+                MinSize: 1
+                MaxSize: 2
+
+    JenkinsSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow http to EC2 and SHH access
+            VpcId: !Ref VPC
+            SecurityGroupIngress:
+            -   IpProtocol: tcp
+                FromPort: 8080
+                ToPort: 8080
+                CidrIp: 0.0.0.0/0
+            -   IpProtocol: tcp
+                FromPort: 22
+                ToPort: 22
+                CidrIp: 0.0.0.0/0
+            SecurityGroupEgress:
+            -   IpProtocol: tcp
+                FromPort: 0
+                ToPort: 65535
+                CidrIp: 0.0.0.0/0
+
+    # JenkinsInstance:
+    #     Type: AWS::EC2::Instance
+    #     Properties:
+    #         UserData:
+    #             Fn::Base64: !Sub |
+    #                 #!/bin/bash
+    #                 sudo apt-get update -y
+    #                 sudo apt-get install default-jdk wget -y
+    #                 wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | sudo apt-key add - 
+    #                 echo "deb http://pkg.jenkins.io/debian-stable binary/" | sudo tee -a /etc/apt/sources.list.d/jenkins.list
+    #                 sudo apt update -y
+    #                 sudo apt install jenkins -y
+    #                 sudo systemctl status jenkins
+    #         SecurityGroupIds:
+    #         -   Fn::GetAtt: JenkinsSecurityGroup.GroupId
+    #         SubnetId: !Ref PublicSubnet1
+    #         ImageId: ami-0a63f96e85105c6d3
+    #         InstanceType: t2.micro
+    #         KeyName: !Ref KeyName
+    #         Tags:
+    #         -   Key: Name
+    #             Value: Jenkins server
+      
+    JenkinsGroup:
+      Type: "AWS::AutoScaling::AutoScalingGroup"
+      Properties:
+        LaunchConfigurationName:
+          Ref: JenkinsConfig
+        VPCZoneIdentifier:
+        - Fn::ImportValue:
+            !Sub "${EnvironmentName}-PUB-NETS"
+        MinSize: '1'
+        MaxSize: '2'
+        TargetGroupARNs:
+          - Ref: JenkinsTargetGroup
+
+    JenkinsConfig:
+      Type: "AWS::AutoScaling::LaunchConfiguration"
+      Properties:
+        UserData:
+          Fn::Base64: !Sub |
+               #!/bin/bash
+                    sudo apt-get update -y
+                    sudo apt-get install default-jdk wget -y
+                    wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | sudo apt-key add - 
+                    echo "deb http://pkg.jenkins.io/debian-stable binary/" | sudo tee -a /etc/apt/sources.list.d/jenkins.list
+                    sudo apt update -y
+                    sudo apt install jenkins -y
+                    sudo systemctl status jenkins
+        ImageId: ami-089cc16f7f08c4457
+        SecurityGroups:
+          - Ref: JenkinsSecurityGroup
+        InstanceType: t2.micro
+        BlockDeviceMappings:
+          - DeviceName: "/dev/sdk"
+            Ebs:
+              VolumeSize: '10'
+        KeyName : capstone-keypair
+          
+    JenkinsTargetGroup:
+      Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+      Properties:
+        HealthCheckIntervalSeconds: 35
+        HealthCheckPath: /
+        HealthCheckProtocol: HTTP
+        HealthCheckTimeoutSeconds: 8
+        HealthyThresholdCount: 5
+        Port: 80
+        Protocol: HTTP
+        UnhealthyThresholdCount: 5
+        VpcId:
+          Fn::ImportValue:
+            Fn::Sub: "${EnvironmentName}-VPCID"
+Outputs: 
+
+    VPC: 
+        Description: A reference to the created VPC
+        Value: !Ref VPC
+        Export:
+          Name: !Sub ${EnvironmentName}-VPCID
+
+    VPCPublicRouteTable:
+        Description: Public Route
+        Value: !Ref PublicRouteTable
+        Export:
+          Name: !Sub ${EnvironmentName}-PUB-RT
+
+    PublicSubnets:
+        Description: A list of the public subnets
+        Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
+        Export:
+          Name: !Sub ${EnvironmentName}-PUB-NETS
+
+    PublicSubnet1:
+        Description: A reference to the public subnet in the 1st Availability Zone
+        Value: !Ref PublicSubnet1
+        Export:
+          Name: !Sub ${EnvironmentName}-PUB1-SN
+
+    PublicSubnet2: 
+        Description: A reference to the public subnet in the 2nd Availability Zone
+        Value: !Ref PublicSubnet2
+        Export:
+          Name: !Sub ${EnvironmentName}-PUB2-SN
+    
+    EKSEndpoint:
+        Value: !GetAtt CapCluster.Endpoint
+        Description: Cluster Endpoint
