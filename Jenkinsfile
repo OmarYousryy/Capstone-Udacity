@@ -1,10 +1,10 @@
 pipeline {
     environment {
     registry = "mohammedx3/capstone-project"
-    registryCredential = 'docker-creds'
+    registryCredential = 'Docker-Credentials'
     dockerImage = ''
     eksClusterName = 'Capstone-cluster'
-    eksRegion = 'eu-west-1'
+    eksRegion = 'us-west-2'
 }
      agent any
      stages {
@@ -36,7 +36,7 @@ pipeline {
 
           stage('Deployment') {
              steps {
-             withAWS(credentials: 'aws-creds', region: 'eu-west1') {
+             withAWS(credentials: 'aws-creds', region: 'us-west2') {
                     sh 'aws eks --region=${eksRegion} update-kubeconfig --name ${eksClusterName}'
                     sh 'kubectl apply -f k8s/k8s.yml'
                     sh 'kubectl get pods'

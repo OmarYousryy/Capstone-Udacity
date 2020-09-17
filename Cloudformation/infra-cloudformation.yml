@@ -193,36 +193,13 @@ Resources:
                 FromPort: 0
                 ToPort: 65535
                 CidrIp: 0.0.0.0/0
-
-    # JenkinsInstance:
-    #     Type: AWS::EC2::Instance
-    #     Properties:
-    #         UserData:
-    #             Fn::Base64: !Sub |
-    #                 #!/bin/bash
-    #                 sudo apt-get update -y
-    #                 sudo apt-get install default-jdk wget -y
-    #                 wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | sudo apt-key add - 
-    #                 echo "deb http://pkg.jenkins.io/debian-stable binary/" | sudo tee -a /etc/apt/sources.list.d/jenkins.list
-    #                 sudo apt update -y
-    #                 sudo apt install jenkins -y
-    #                 sudo systemctl status jenkins
-    #         SecurityGroupIds:
-    #         -   Fn::GetAtt: JenkinsSecurityGroup.GroupId
-    #         SubnetId: !Ref PublicSubnet1
-    #         ImageId: ami-0a63f96e85105c6d3
-    #         InstanceType: t2.micro
-    #         KeyName: !Ref KeyName
-    #         Tags:
-    #         -   Key: Name
-    #             Value: Jenkins server
       
     JenkinsGroup:
       Type: "AWS::AutoScaling::AutoScalingGroup"
       Properties:
         LaunchConfigurationName:
           Ref: JenkinsConfig
-        VPCZoneIdentifier:
+        VPCZoneIdentifier: 
         - Fn::ImportValue:
             !Sub "${EnvironmentName}-PUB-NETS"
         MinSize: '1'
@@ -235,7 +212,7 @@ Resources:
       Properties:
         UserData:
           Fn::Base64: !Sub |
-               #!/bin/bash
+              #!/bin/bash
                     sudo apt-get update -y
                     sudo apt-get install default-jdk wget -y
                     wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | sudo apt-key add - 
@@ -243,7 +220,7 @@ Resources:
                     sudo apt update -y
                     sudo apt install jenkins -y
                     sudo systemctl status jenkins
-        ImageId: ami-089cc16f7f08c4457
+        ImageId: ami-06e54d05255faf8f6
         SecurityGroups:
           - Ref: JenkinsSecurityGroup
         InstanceType: t2.micro
@@ -264,7 +241,7 @@ Resources:
         Port: 80
         Protocol: HTTP
         UnhealthyThresholdCount: 5
-        VpcId:
+        VpcId: 
           Fn::ImportValue:
             Fn::Sub: "${EnvironmentName}-VPCID"
 Outputs: 
