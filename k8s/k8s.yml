@@ -20,7 +20,7 @@ spec:
         name: application-deployment
     spec:
       containers:
-        - image: mohammedx3/capstone-project:3
+        - image: omary/test
           name: application
           imagePullPolicy: Never
           ports:
