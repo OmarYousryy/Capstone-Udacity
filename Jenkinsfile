@@ -47,6 +47,6 @@ pipeline {
     dockerImage = 'omary/test'
     eksClusterName = 'Capstone-cluster'
     eksRegion = 'us-west-2'
-    registry = 'OmarYousryy/Capstone-Udacity'
+    registry = 'omaryousryy/capstone-udacity'
   }
 }
