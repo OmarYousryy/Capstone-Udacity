@@ -33,8 +33,10 @@ pipeline {
     stage('Deployment') {
       steps {
         withAWS(credentials: 'omarc', region: 'us-west-2') {
-          sh 'aws eks --region=${eksRegion} update-kubeconfig --name ${eksClusterName}'
+          sh 'aws eks --region us-west-2 update-kubeconfig --name Capstone-cluster'
+          sh "kubectl config use-context arn:aws:iam::212930620470:cluster/Capstone-cluster"
           sh 'kubectl apply -f k8s/k8s.yml'
+          sh "kubectl get nodes"
           sh 'kubectl get pods'
         }
 
