@@ -32,7 +32,7 @@ pipeline {
 
     stage('Deployment') {
       steps {
-        withAWS(credentials: 'aws-creds', region: 'us-west2') {
+        withAWS(credentials: 'omarc', region: 'us-west-2') {
           sh 'aws eks --region=${eksRegion} update-kubeconfig --name ${eksClusterName}'
           sh 'kubectl apply -f k8s/k8s.yml'
           sh 'kubectl get pods'
