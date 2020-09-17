@@ -43,7 +43,6 @@ pipeline {
 
   }
   environment {
-    registry = 'OmarYousryy / Capstone-Udacity'
     registryCredential = 'Docker-Credentials'
     dockerImage = 'omary/test'
     eksClusterName = 'Capstone-cluster'
