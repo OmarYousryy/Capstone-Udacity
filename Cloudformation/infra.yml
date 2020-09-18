@@ -8,17 +8,17 @@ Parameters:
     VpcCIDR: 
         Description: Please enter the IP range (CIDR notation) for this VPC
         Type: String
-        Default: 30.0.0.0/16
+        Default: 10.0.0.0/16
 
     PublicSubnet1CIDR:
         Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
         Type: String
-        Default: 30.0.1.0/24
+        Default: 10.0.1.0/24
 
     PublicSubnet2CIDR:
         Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
         Type: String
-        Default: 30.0.2.0/24
+        Default: 10.0.2.0/24
 
     KeyName:
         Description: Keypair to use for ssh
@@ -143,7 +143,7 @@ Resources:
             -   "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
             -   "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 
-    CapCluster:
+    CapstoneCluster:
         Type: AWS::EKS::Cluster
         Properties:
             Name: !Sub '${EnvironmentName}-cluster'
@@ -278,4 +278,4 @@ Outputs:
     
     EKSEndpoint:
         Value: !GetAtt CapCluster.Endpoint
-        Description: Cluster Endpoint
+        Description: Cluster_URL
